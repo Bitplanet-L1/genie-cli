@@ -166,17 +166,15 @@ export interface ClientToServerEvents {
 }
 
 /**
- * Session information
+ * Session information (no encryption for Genie CLI)
  */
 export type Session = {
-  id: string,
-  seq: number,
-  encryptionKey: Uint8Array;
-  encryptionVariant: 'legacy' | 'dataKey';
-  metadata: Metadata,
-  metadataVersion: number,
-  agentState: AgentState | null,
-  agentStateVersion: number,
+  id: string
+  seq: number
+  metadata: Metadata
+  metadataVersion: number
+  agentState: AgentState | null
+  agentStateVersion: number
 }
 
 /**
@@ -214,14 +212,15 @@ export const DaemonStateSchema = z.object({
 
 export type DaemonState = z.infer<typeof DaemonStateSchema>
 
+/**
+ * Machine information (no encryption for Genie CLI)
+ */
 export type Machine = {
-  id: string,
-  encryptionKey: Uint8Array;
-  encryptionVariant: 'legacy' | 'dataKey';
-  metadata: MachineMetadata,
-  metadataVersion: number,
-  daemonState: DaemonState | null,
-  daemonStateVersion: number,
+  id: string
+  metadata: MachineMetadata
+  metadataVersion: number
+  daemonState: DaemonState | null
+  daemonStateVersion: number
 }
 
 /**

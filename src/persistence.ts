@@ -1,16 +1,15 @@
 /**
- * Minimal persistence functions for happy CLI
- * 
- * Handles settings and private key storage in ~/.happy/ or local .happy/
+ * Persistence functions for Genie CLI
+ *
+ * Handles settings and OIDC credentials storage in ~/.genie/
  */
 
 import { FileHandle } from 'node:fs/promises'
-import { readFile, writeFile, mkdir, open, unlink, rename, stat } from 'node:fs/promises'
+import { readFile, writeFile, mkdir, open, unlink, rename, stat, chmod } from 'node:fs/promises'
 import { existsSync, writeFileSync, readFileSync, unlinkSync } from 'node:fs'
 import { constants } from 'node:fs'
 import { configuration } from '@/configuration'
 import * as z from 'zod';
-import { encodeBase64 } from '@/api/encryption';
 import { logger } from '@/ui/logger';
 
 // AI backend profile schema - MUST match happy app exactly
@@ -394,82 +393,85 @@ export async function updateSettings(
 }
 
 //
-// Authentication
+// Authentication - OIDC Credentials
 //
 
-const credentialsSchema = z.object({
-  token: z.string(),
-  secret: z.string().base64().nullish(), // Legacy
-  encryption: z.object({
-    publicKey: z.string().base64(),
-    machineKey: z.string().base64()
-  }).nullish()
+/**
+ * OIDC credentials schema for Deva SSO
+ */
+const genieCredentialsSchema = z.object({
+  access_token: z.string(),
+  refresh_token: z.string(),
+  expires_at: z.number(),
 })
 
-export type Credentials = {
-  token: string,
-  encryption: {
-    type: 'legacy', secret: Uint8Array
-  } | {
-    type: 'dataKey', publicKey: Uint8Array, machineKey: Uint8Array
-  }
-}
+export type GenieCredentials = z.infer<typeof genieCredentialsSchema>
 
-export async function readCredentials(): Promise<Credentials | null> {
-  if (!existsSync(configuration.privateKeyFile)) {
+/**
+ * Credentials type alias for backward compatibility
+ */
+export type Credentials = GenieCredentials
+
+/**
+ * Read OIDC credentials from ~/.genie/credentials.json
+ */
+export async function readCredentials(): Promise<GenieCredentials | null> {
+  if (!existsSync(configuration.credentialsFile)) {
     return null
   }
   try {
-    const keyBase64 = (await readFile(configuration.privateKeyFile, 'utf8'));
-    const credentials = credentialsSchema.parse(JSON.parse(keyBase64));
-    if (credentials.secret) {
-      return {
-        token: credentials.token,
-        encryption: {
-          type: 'legacy',
-          secret: new Uint8Array(Buffer.from(credentials.secret, 'base64'))
-        }
-      };
-    } else if (credentials.encryption) {
-      return {
-        token: credentials.token,
-        encryption: {
-          type: 'dataKey',
-          publicKey: new Uint8Array(Buffer.from(credentials.encryption.publicKey, 'base64')),
-          machineKey: new Uint8Array(Buffer.from(credentials.encryption.machineKey, 'base64'))
-        }
-      }
-    }
-  } catch {
+    const content = await readFile(configuration.credentialsFile, 'utf8')
+    const parsed = JSON.parse(content)
+    return genieCredentialsSchema.parse(parsed)
+  } catch (error) {
+    logger.warn(`Failed to read credentials: ${error}`)
     return null
   }
-  return null
 }
 
-export async function writeCredentialsLegacy(credentials: { secret: Uint8Array, token: string }): Promise<void> {
-  if (!existsSync(configuration.happyHomeDir)) {
-    await mkdir(configuration.happyHomeDir, { recursive: true })
+/**
+ * Write OIDC credentials to ~/.genie/credentials.json
+ * Sets file permissions to 0600 (owner read/write only)
+ */
+export async function writeCredentials(credentials: GenieCredentials): Promise<void> {
+  if (!existsSync(configuration.genieHomeDir)) {
+    await mkdir(configuration.genieHomeDir, { recursive: true })
   }
-  await writeFile(configuration.privateKeyFile, JSON.stringify({
-    secret: encodeBase64(credentials.secret),
-    token: credentials.token
-  }, null, 2));
+  await writeFile(configuration.credentialsFile, JSON.stringify(credentials, null, 2))
+  await chmod(configuration.credentialsFile, 0o600)
 }
 
-export async function writeCredentialsDataKey(credentials: { publicKey: Uint8Array, machineKey: Uint8Array, token: string }): Promise<void> {
-  if (!existsSync(configuration.happyHomeDir)) {
-    await mkdir(configuration.happyHomeDir, { recursive: true })
-  }
-  await writeFile(configuration.privateKeyFile, JSON.stringify({
-    encryption: { publicKey: encodeBase64(credentials.publicKey), machineKey: encodeBase64(credentials.machineKey) },
-    token: credentials.token
-  }, null, 2));
-}
-
+/**
+ * Clear OIDC credentials
+ */
 export async function clearCredentials(): Promise<void> {
-  if (existsSync(configuration.privateKeyFile)) {
-    await unlink(configuration.privateKeyFile);
+  if (existsSync(configuration.credentialsFile)) {
+    await unlink(configuration.credentialsFile)
   }
+}
+
+/**
+ * Check if the access token is expired (with 5 minute buffer)
+ */
+export function isTokenExpired(credentials: GenieCredentials): boolean {
+  const bufferMs = 5 * 60 * 1000 // 5 minutes
+  return Date.now() > credentials.expires_at - bufferMs
+}
+
+/**
+ * Get the access token for API requests
+ * Returns null if not authenticated or token is expired
+ */
+export async function getAccessToken(): Promise<string | null> {
+  const credentials = await readCredentials()
+  if (!credentials) {
+    return null
+  }
+  if (isTokenExpired(credentials)) {
+    logger.debug('Access token is expired')
+    return null
+  }
+  return credentials.access_token
 }
 
 export async function clearMachineId(): Promise<void> {

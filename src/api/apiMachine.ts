@@ -1,6 +1,7 @@
 /**
- * WebSocket client for machine/daemon communication with Happy server
+ * WebSocket client for machine/daemon communication with Genie Relay Server
  * Similar to ApiSessionClient but for machine-scoped connections
+ * No encryption - data is sent as plain JSON
  */
 
 import { io, Socket } from 'socket.io-client';
@@ -8,7 +9,6 @@ import { logger } from '@/ui/logger';
 import { configuration } from '@/configuration';
 import { MachineMetadata, DaemonState, Machine, Update, UpdateMachineBody } from './types';
 import { registerCommonHandlers, SpawnSessionOptions, SpawnSessionResult } from '../modules/common/registerCommonHandlers';
-import { encodeBase64, decodeBase64, encrypt, decrypt } from './encryption';
 import { backoff } from '@/utils/time';
 import { RpcHandlerManager } from './rpc/RpcHandlerManager';
 
@@ -30,7 +30,7 @@ interface DaemonToServerEvents {
 
     'machine-update-metadata': (data: {
         machineId: string;
-        metadata: string; // Encrypted MachineMetadata
+        metadata: string; // JSON string
         expectedVersion: number
     }, cb: (answer: {
         result: 'error'
@@ -46,7 +46,7 @@ interface DaemonToServerEvents {
 
     'machine-update-state': (data: {
         machineId: string;
-        daemonState: string; // Encrypted DaemonState
+        daemonState: string; // JSON string
         expectedVersion: number
     }, cb: (answer: {
         result: 'error'
@@ -84,11 +84,9 @@ export class ApiMachineClient {
         private token: string,
         private machine: Machine
     ) {
-        // Initialize RPC handler manager
+        // Initialize RPC handler manager (no encryption)
         this.rpcHandlerManager = new RpcHandlerManager({
             scopePrefix: this.machine.id,
-            encryptionKey: this.machine.encryptionKey,
-            encryptionVariant: this.machine.encryptionVariant,
             logger: (msg, data) => logger.debug(msg, data)
         });
 
@@ -125,7 +123,7 @@ export class ApiMachineClient {
             }
         });
 
-        // Register stop session handler  
+        // Register stop session handler
         this.rpcHandlerManager.registerHandler('stop-session', (params: any) => {
             const { sessionId } = params || {};
 
@@ -167,18 +165,18 @@ export class ApiMachineClient {
 
             const answer = await this.socket.emitWithAck('machine-update-metadata', {
                 machineId: this.machine.id,
-                metadata: encodeBase64(encrypt(this.machine.encryptionKey, this.machine.encryptionVariant, updated)),
+                metadata: JSON.stringify(updated),
                 expectedVersion: this.machine.metadataVersion
             });
 
             if (answer.result === 'success') {
-                this.machine.metadata = decrypt(this.machine.encryptionKey, this.machine.encryptionVariant, decodeBase64(answer.metadata));
+                this.machine.metadata = typeof answer.metadata === 'string' ? JSON.parse(answer.metadata) : answer.metadata;
                 this.machine.metadataVersion = answer.version;
                 logger.debug('[API MACHINE] Metadata updated successfully');
             } else if (answer.result === 'version-mismatch') {
                 if (answer.version > this.machine.metadataVersion) {
                     this.machine.metadataVersion = answer.version;
-                    this.machine.metadata = decrypt(this.machine.encryptionKey, this.machine.encryptionVariant, decodeBase64(answer.metadata));
+                    this.machine.metadata = typeof answer.metadata === 'string' ? JSON.parse(answer.metadata) : answer.metadata;
                 }
                 throw new Error('Metadata version mismatch'); // Triggers retry
             }
@@ -195,18 +193,18 @@ export class ApiMachineClient {
 
             const answer = await this.socket.emitWithAck('machine-update-state', {
                 machineId: this.machine.id,
-                daemonState: encodeBase64(encrypt(this.machine.encryptionKey, this.machine.encryptionVariant, updated)),
+                daemonState: JSON.stringify(updated),
                 expectedVersion: this.machine.daemonStateVersion
             });
 
             if (answer.result === 'success') {
-                this.machine.daemonState = decrypt(this.machine.encryptionKey, this.machine.encryptionVariant, decodeBase64(answer.daemonState));
+                this.machine.daemonState = typeof answer.daemonState === 'string' ? JSON.parse(answer.daemonState) : answer.daemonState;
                 this.machine.daemonStateVersion = answer.version;
                 logger.debug('[API MACHINE] Daemon state updated successfully');
             } else if (answer.result === 'version-mismatch') {
                 if (answer.version > this.machine.daemonStateVersion) {
                     this.machine.daemonStateVersion = answer.version;
-                    this.machine.daemonState = decrypt(this.machine.encryptionKey, this.machine.encryptionVariant, decodeBase64(answer.daemonState));
+                    this.machine.daemonState = typeof answer.daemonState === 'string' ? JSON.parse(answer.daemonState) : answer.daemonState;
                 }
                 throw new Error('Daemon state version mismatch'); // Triggers retry
             }
@@ -214,7 +212,7 @@ export class ApiMachineClient {
     }
 
     connect() {
-        const serverUrl = configuration.serverUrl.replace(/^http/, 'ws');
+        const serverUrl = configuration.relayServerUrl.replace(/^http/, 'ws');
         logger.debug(`[API MACHINE] Connecting to ${serverUrl}`);
 
         this.socket = io(serverUrl, {
@@ -273,13 +271,17 @@ export class ApiMachineClient {
 
                 if (update.metadata) {
                     logger.debug('[API MACHINE] Received external metadata update');
-                    this.machine.metadata = decrypt(this.machine.encryptionKey, this.machine.encryptionVariant, decodeBase64(update.metadata.value));
+                    this.machine.metadata = typeof update.metadata.value === 'string'
+                        ? JSON.parse(update.metadata.value)
+                        : update.metadata.value;
                     this.machine.metadataVersion = update.metadata.version;
                 }
 
                 if (update.daemonState) {
                     logger.debug('[API MACHINE] Received external daemon state update');
-                    this.machine.daemonState = decrypt(this.machine.encryptionKey, this.machine.encryptionVariant, decodeBase64(update.daemonState.value));
+                    this.machine.daemonState = typeof update.daemonState.value === 'string'
+                        ? JSON.parse(update.daemonState.value)
+                        : update.daemonState.value;
                     this.machine.daemonStateVersion = update.daemonState.version;
                 }
             } else {

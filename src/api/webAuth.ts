@@ -1,12 +1,11 @@
-import { encodeBase64 } from './encryption';
 import { configuration } from '@/configuration';
 
 /**
  * Generate a URL for web authentication
- * @param publicKey - The ephemeral public key to include in the URL
+ * Note: This function is likely not needed for Genie CLI's OIDC flow,
+ * but kept for backward compatibility
  * @returns The web authentication URL
  */
-export function generateWebAuthUrl(publicKey: Uint8Array): string {
-    const publicKeyBase64 = encodeBase64(publicKey, 'base64url');
-    return `${configuration.webappUrl}/terminal/connect#key=${publicKeyBase64}`;
+export function generateWebAuthUrl(): string {
+    return `${configuration.webUrl}/terminal/connect`;
 }

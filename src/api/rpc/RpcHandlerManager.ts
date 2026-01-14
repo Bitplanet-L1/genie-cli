@@ -1,31 +1,27 @@
 /**
  * Generic RPC handler manager for session and machine clients
- * Manages RPC method registration, encryption/decryption, and handler execution
+ * Manages RPC method registration and handler execution
+ * No encryption - messages are sent in plaintext for Genie CLI
  */
 
-import { logger as defaultLogger } from '@/ui/logger';
-import { decodeBase64, encodeBase64, encrypt, decrypt } from '@/api/encryption';
+import { logger as defaultLogger } from '@/ui/logger'
 import {
     RpcHandler,
     RpcHandlerMap,
     RpcRequest,
     RpcHandlerConfig,
-} from './types';
-import { Socket } from 'socket.io-client';
+} from './types'
+import { Socket } from 'socket.io-client'
 
 export class RpcHandlerManager {
-    private handlers: RpcHandlerMap = new Map();
-    private readonly scopePrefix: string;
-    private readonly encryptionKey: Uint8Array;
-    private readonly encryptionVariant: 'legacy' | 'dataKey';
-    private readonly logger: (message: string, data?: any) => void;
-    private socket: Socket | null = null;
+    private handlers: RpcHandlerMap = new Map()
+    private readonly scopePrefix: string
+    private readonly logger: (message: string, data?: unknown) => void
+    private socket: Socket | null = null
 
     constructor(config: RpcHandlerConfig) {
-        this.scopePrefix = config.scopePrefix;
-        this.encryptionKey = config.encryptionKey;
-        this.encryptionVariant = config.encryptionVariant;
-        this.logger = config.logger || ((msg, data) => defaultLogger.debug(msg, data));
+        this.scopePrefix = config.scopePrefix
+        this.logger = config.logger || ((msg, data) => defaultLogger.debug(msg, data))
     }
 
     /**
@@ -33,75 +29,74 @@ export class RpcHandlerManager {
      * @param method - The method name (without prefix)
      * @param handler - The handler function
      */
-    registerHandler<TRequest = any, TResponse = any>(
+    registerHandler<TRequest = unknown, TResponse = unknown>(
         method: string,
         handler: RpcHandler<TRequest, TResponse>
     ): void {
-        const prefixedMethod = this.getPrefixedMethod(method);
+        const prefixedMethod = this.getPrefixedMethod(method)
 
         // Store the handler
-        this.handlers.set(prefixedMethod, handler);
+        this.handlers.set(prefixedMethod, handler as RpcHandler)
 
         if (this.socket) {
-            this.socket.emit('rpc-register', { method: prefixedMethod });
+            this.socket.emit('rpc-register', { method: prefixedMethod })
         }
     }
 
     /**
-     * Handle an incoming RPC request
+     * Handle an incoming RPC request (no encryption)
      * @param request - The RPC request data
-     * @param callback - The response callback
      */
-    async handleRequest(
-        request: RpcRequest,
-    ): Promise<any> {
+    async handleRequest(request: RpcRequest): Promise<string> {
         try {
-            const handler = this.handlers.get(request.method);
+            const handler = this.handlers.get(request.method)
 
             if (!handler) {
-                this.logger('[RPC] [ERROR] Method not found', { method: request.method });
-                const errorResponse = { error: 'Method not found' };
-                const encryptedError = encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, errorResponse));
-                return encryptedError;
+                this.logger('[RPC] [ERROR] Method not found', { method: request.method })
+                return JSON.stringify({ error: 'Method not found' })
             }
 
-            // Decrypt the incoming params
-            const decryptedParams = decrypt(this.encryptionKey, this.encryptionVariant, decodeBase64(request.params));
+            // Parse the JSON params (no decryption needed)
+            let params: unknown
+            try {
+                params = JSON.parse(request.params)
+            } catch {
+                params = request.params
+            }
 
             // Call the handler
-            this.logger('[RPC] Calling handler', { method: request.method });
-            const result = await handler(decryptedParams);
-            this.logger('[RPC] Handler returned', { method: request.method, hasResult: result !== undefined });
+            this.logger('[RPC] Calling handler', { method: request.method })
+            const result = await handler(params)
+            this.logger('[RPC] Handler returned', { method: request.method, hasResult: result !== undefined })
 
-            // Encrypt and return the response
-            const encryptedResponse = encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, result));
-            this.logger('[RPC] Sending encrypted response', { method: request.method, responseLength: encryptedResponse.length });
-            return encryptedResponse;
+            // Return the response as JSON
+            const response = JSON.stringify(result)
+            this.logger('[RPC] Sending response', { method: request.method, responseLength: response.length })
+            return response
         } catch (error) {
-            this.logger('[RPC] [ERROR] Error handling request', { error });
-            const errorResponse = {
+            this.logger('[RPC] [ERROR] Error handling request', { error })
+            return JSON.stringify({
                 error: error instanceof Error ? error.message : 'Unknown error'
-            };
-            return encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, errorResponse));
+            })
         }
     }
 
     onSocketConnect(socket: Socket): void {
-        this.socket = socket;
+        this.socket = socket
         for (const [prefixedMethod] of this.handlers) {
-            socket.emit('rpc-register', { method: prefixedMethod });
+            socket.emit('rpc-register', { method: prefixedMethod })
         }
     }
 
     onSocketDisconnect(): void {
-        this.socket = null;
+        this.socket = null
     }
 
     /**
      * Get the number of registered handlers
      */
     getHandlerCount(): number {
-        return this.handlers.size;
+        return this.handlers.size
     }
 
     /**
@@ -109,16 +104,16 @@ export class RpcHandlerManager {
      * @param method - The method name (without prefix)
      */
     hasHandler(method: string): boolean {
-        const prefixedMethod = this.getPrefixedMethod(method);
-        return this.handlers.has(prefixedMethod);
+        const prefixedMethod = this.getPrefixedMethod(method)
+        return this.handlers.has(prefixedMethod)
     }
 
     /**
      * Clear all handlers
      */
     clearHandlers(): void {
-        this.handlers.clear();
-        this.logger('Cleared all RPC handlers');
+        this.handlers.clear()
+        this.logger('Cleared all RPC handlers')
     }
 
     /**
@@ -126,7 +121,7 @@ export class RpcHandlerManager {
      * @param method - The method name
      */
     private getPrefixedMethod(method: string): string {
-        return `${this.scopePrefix}:${method}`;
+        return `${this.scopePrefix}:${method}`
     }
 }
 
@@ -134,5 +129,5 @@ export class RpcHandlerManager {
  * Factory function to create an RPC handler manager
  */
 export function createRpcHandlerManager(config: RpcHandlerConfig): RpcHandlerManager {
-    return new RpcHandlerManager(config);
+    return new RpcHandlerManager(config)
 }

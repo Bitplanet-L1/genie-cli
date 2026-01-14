@@ -23,24 +23,11 @@ vi.mock('@/ui/logger', () => ({
     }
 }));
 
-// Mock encryption utilities
-vi.mock('./encryption', () => ({
-    decodeBase64: vi.fn((data: string) => data),
-    encodeBase64: vi.fn((data: any) => data),
-    decrypt: vi.fn((data: any) => data),
-    encrypt: vi.fn((data: any) => data)
-}));
-
 // Mock configuration
-vi.mock('./configuration', () => ({
+vi.mock('@/configuration', () => ({
     configuration: {
-        serverUrl: 'https://api.example.com'
+        relayServerUrl: 'https://api.example.com'
     }
-}));
-
-// Mock libsodium encryption
-vi.mock('./libsodiumEncryption', () => ({
-    libsodiumEncryptForPublicKey: vi.fn((data: any) => new Uint8Array(32))
 }));
 
 // Global test metadata
@@ -69,13 +56,11 @@ describe('Api server error handling', () => {
         vi.clearAllMocks();
         connectionState.reset(); // Reset offline state between tests
 
-        // Create a mock credential
+        // Create a mock credential (Genie OIDC format)
         const mockCredential = {
-            token: 'fake-token',
-            encryption: {
-                type: 'legacy' as const,
-                secret: new Uint8Array(32)
-            }
+            access_token: 'fake-token',
+            refresh_token: 'fake-refresh-token',
+            expires_at: Date.now() + 3600000
         };
 
         api = await ApiClient.create(mockCredential);
@@ -256,8 +241,6 @@ describe('Api server error handling', () => {
 
             expect(result).toEqual({
                 id: 'test-machine',
-                encryptionKey: expect.any(Uint8Array),
-                encryptionVariant: 'legacy',
                 metadata: testMachineMetadata,
                 metadataVersion: 0,
                 daemonState: {
@@ -291,8 +274,6 @@ describe('Api server error handling', () => {
 
             expect(result).toEqual({
                 id: 'test-machine',
-                encryptionKey: expect.any(Uint8Array),
-                encryptionVariant: 'legacy',
                 metadata: testMachineMetadata,
                 metadataVersion: 0,
                 daemonState: null,
