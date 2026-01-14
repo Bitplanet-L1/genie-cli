@@ -13,9 +13,11 @@ import { logger } from '@/ui/logger'
  * Token response from OIDC token endpoint
  */
 export interface TokenResponse {
+  id_token: string
   access_token: string
   refresh_token: string
-  expires_in: number
+  persona_id?: string
+  expires_in?: number
 }
 
 /**

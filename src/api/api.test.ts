@@ -58,6 +58,7 @@ describe('Api server error handling', () => {
 
         // Create a mock credential (Genie OIDC format)
         const mockCredential = {
+            id_token: 'fake-id-token',
             access_token: 'fake-token',
             refresh_token: 'fake-refresh-token',
             expires_at: Date.now() + 3600000

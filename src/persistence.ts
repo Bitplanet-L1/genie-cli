@@ -398,11 +398,14 @@ export async function updateSettings(
 
 /**
  * OIDC credentials schema for Deva SSO
+ * Matches the format in ~/.genie/deva_credentials.json
  */
 const genieCredentialsSchema = z.object({
+  id_token: z.string(),
   access_token: z.string(),
   refresh_token: z.string(),
-  expires_at: z.number(),
+  persona_id: z.string().optional(),
+  expires_at: z.number().optional(),
 })
 
 export type GenieCredentials = z.infer<typeof genieCredentialsSchema>
@@ -452,8 +455,12 @@ export async function clearCredentials(): Promise<void> {
 
 /**
  * Check if the access token is expired (with 5 minute buffer)
+ * If expires_at is not set, assume token is valid (server will validate)
  */
 export function isTokenExpired(credentials: GenieCredentials): boolean {
+  if (!credentials.expires_at) {
+    return false // No expiry set, assume valid
+  }
   const bufferMs = 5 * 60 * 1000 // 5 minutes
   return Date.now() > credentials.expires_at - bufferMs
 }

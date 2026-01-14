@@ -197,8 +197,12 @@ async function handleAuthStatus(): Promise<void> {
   console.log(chalk.gray(`  Token: ${tokenPreview}`))
 
   // Expiration info
-  const expiresAt = new Date(credentials.expires_at)
-  console.log(chalk.gray(`  Expires: ${expiresAt.toISOString()}`))
+  if (credentials.expires_at) {
+    const expiresAt = new Date(credentials.expires_at)
+    console.log(chalk.gray(`  Expires: ${expiresAt.toISOString()}`))
+  } else {
+    console.log(chalk.gray('  Expires: No expiration set'))
+  }
 
   // Machine status
   if (settings?.machineId) {

@@ -64,7 +64,7 @@ class Configuration {
 
     this.logsDir = join(this.genieHomeDir, 'logs')
     this.settingsFile = join(this.genieHomeDir, 'settings.json')
-    this.credentialsFile = join(this.genieHomeDir, 'credentials.json')
+    this.credentialsFile = join(this.genieHomeDir, 'deva_credentials.json')
     this.daemonStateFile = join(this.genieHomeDir, 'daemon.state.json')
     this.daemonLockFile = join(this.genieHomeDir, 'daemon.state.json.lock')
 

@@ -116,9 +116,11 @@ async function waitForAuthCodeAndExchange(
       try {
         const tokens = await exchangeCodeForTokens(authCode, codeVerifier)
         return {
+          id_token: tokens.id_token,
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token,
-          expires_at: Date.now() + tokens.expires_in * 1000,
+          persona_id: tokens.persona_id,
+          expires_at: tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : undefined,
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
@@ -174,9 +176,11 @@ export async function authAndSetupMachineIfNeeded(): Promise<{
     try {
       const tokens = await refreshAccessToken(credentials.refresh_token)
       credentials = {
+        id_token: tokens.id_token,
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
-        expires_at: Date.now() + tokens.expires_in * 1000,
+        persona_id: tokens.persona_id || credentials.persona_id,
+        expires_at: tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : undefined,
       }
       await writeCredentials(credentials)
       logger.debug('[AUTH] Token refreshed successfully')
