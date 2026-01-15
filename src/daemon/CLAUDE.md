@@ -23,7 +23,7 @@ Control Flow:
    - HTTP server: starts on random port for local CLI control (list, stop, spawn)
    - WebSocket: establishes persistent connection to backend via `ApiMachineClient`
    - RPC registration: exposes `spawn-happy-session`, `stop-session`, `requestShutdown` handlers
-   - Heartbeat loop: every 60s (or HAPPY_DAEMON_HEARTBEAT_INTERVAL) checks for version updates and prunes dead sessions
+   - Heartbeat loop: every 60s (or GENIE_DAEMON_HEARTBEAT_INTERVAL) checks for version updates and prunes dead sessions
 5. Awaits shutdown promise which resolves when:
    - OS signal received (SIGINT/SIGTERM)
    - HTTP `/stop` endpoint called

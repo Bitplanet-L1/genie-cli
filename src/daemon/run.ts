@@ -693,7 +693,7 @@ export async function startDaemon(): Promise<void> {
     // 2. Check if daemon needs update
     // 3. If outdated, restart with latest version
     // 4. Write heartbeat
-    const heartbeatIntervalMs = parseInt(process.env.HAPPY_DAEMON_HEARTBEAT_INTERVAL || '60000');
+    const heartbeatIntervalMs = parseInt(process.env.GENIE_DAEMON_HEARTBEAT_INTERVAL || '60000');
     let heartbeatRunning = false
     const restartOnStaleVersionAndHeartbeat = setInterval(async () => {
       if (heartbeatRunning) {

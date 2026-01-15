@@ -447,7 +447,7 @@ describe.skipIf(!await isServerHealthy())('Daemon Integration Tests', { timeout:
 
       // The daemon should automatically detect the version mismatch and restart itself
       // We check once per minute, wait for a little longer than that
-      await new Promise(resolve => setTimeout(resolve, parseInt(process.env.HAPPY_DAEMON_HEARTBEAT_INTERVAL || '30000') + 10_000));
+      await new Promise(resolve => setTimeout(resolve, parseInt(process.env.GENIE_DAEMON_HEARTBEAT_INTERVAL || '30000') + 10_000));
 
       // Check that the daemon is running with the new version
       const finalState = await readDaemonState();

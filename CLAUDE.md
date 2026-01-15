@@ -1,12 +1,12 @@
-# Happy CLI Codebase Overview
+# Genie CLI Codebase Overview
 
 ## Project Overview
 
-Happy CLI (`handy-cli`) is a command-line tool that wraps Claude Code to enable remote control and session sharing. It's part of a three-component system:
+Genie CLI (`genie-cli`) is a command-line tool that wraps Claude Code to enable remote control and session sharing. It's part of a three-component system:
 
-1. **handy-cli** (this project) - CLI wrapper for Claude Code
-2. **handy** - React Native mobile client
-3. **handy-server** - Node.js server with Prisma (hosted at https://api.happy-servers.com/)
+1. **genie-cli** (this project) - CLI wrapper for Claude Code
+2. **genie** - React Native mobile client
+3. **genie-relay-server** - Node.js server to relay messages between the cli and the web/mobile app
 
 ## Code Style Preferences
 
@@ -49,7 +49,9 @@ Handles server communication and encryption.
 
 - **`api.ts`**: Main API client class for session management
 - **`apiSession.ts`**: WebSocket-based real-time session client with RPC support
+- **`apiMachine.ts`**: Machine-level API client for daemon operations
 - **`auth.ts`**: Authentication flow using TweetNaCl for cryptographic signatures
+- **`webAuth.ts`**: Web-based OIDC authentication flow
 - **`encryption.ts`**: End-to-end encryption utilities using TweetNaCl
 - **`types.ts`**: Zod schemas for type-safe API communication
 
@@ -64,65 +66,123 @@ Core Claude Code integration layer.
 
 - **`loop.ts`**: Main control loop managing interactive/remote modes
 - **`types.ts`**: Claude message type definitions with parsers
+- **`claudeLocal.ts`**: Local Claude session management
+- **`claudeRemote.ts`**: Remote Claude session management
+- **`claudeLocalLauncher.ts`**: Launcher for local Claude sessions
+- **`claudeRemoteLauncher.ts`**: Launcher for remote Claude sessions
+- **`runClaude.ts`**: Main entry point for running Claude
+- **`session.ts`**: Session state management
 
-- **`claudeSdk.ts`**: Direct SDK integration using `@anthropic-ai/claude-code`
-- **`interactive.ts`**: **LIKELY WILL BE DEPRECATED in favor of running through SDK** PTY-based interactive Claude sessions
-- **`watcher.ts`**: File system watcher for Claude session files (for interactive mode snooping)
-
-- **`mcp/startPermissionServer.ts`**: MCP (Model Context Protocol) permission server
+- **`sdk/query.ts`**: Direct SDK integration using `@anthropic-ai/claude-code`
+- **`sdk/stream.ts`**: Stream processing for Claude responses
+- **`sdk/utils.ts`**: Utility functions for SDK operations
 
 **Key Features:**
-- Dual mode operation: interactive (terminal) and remote (mobile control)
+- Dual mode operation: local (terminal) and remote (mobile control)
 - Session persistence and resumption
 - Real-time message streaming
-- Permission intercepting via MCP [Permission checking not implemented yet]
+- Permission handling via hooks
 
-### 3. UI Module (`/src/ui/`)
+### 3. Gemini Integration (`/src/gemini/`)
+Google Gemini CLI integration.
+
+- **`runGemini.ts`**: Main entry point for Gemini sessions
+- **`constants.ts`**: Gemini-specific constants
+- **`types.ts`**: Gemini type definitions
+- **`utils/config.ts`**: Configuration management
+- **`utils/conversationHistory.ts`**: Conversation history tracking
+
+### 4. Codex Integration (`/src/codex/`)
+OpenAI Codex CLI integration.
+
+- **`runCodex.ts`**: Main entry point for Codex sessions
+- **`codexMcpClient.ts`**: MCP client for Codex
+- **`happyMcpStdioBridge.ts`**: Bridge for MCP stdio communication
+
+### 5. Daemon Module (`/src/daemon/`)
+Background daemon for persistent connections.
+
+- **`run.ts`**: Main daemon entry point
+- **`controlServer.ts`**: HTTP server for daemon control
+- **`controlClient.ts`**: Client for daemon communication
+- **`types.ts`**: Daemon type definitions
+- **`install.ts`**: Daemon installation logic
+- **`mac/install.ts`**: macOS-specific installation
+
+### 6. UI Module (`/src/ui/`)
 User interface components.
 
 - **`logger.ts`**: Centralized logging system with file output
 - **`qrcode.ts`**: QR code generation for mobile authentication
 - **`start.ts`**: Main application startup and orchestration
+- **`doctor.ts`**: Diagnostics and health check
+- **`messageFormatter.ts`**: Message formatting utilities
+- **`ink/`**: React Ink-based terminal UI components
 
 **Key Features:**
 - Clean console UI with chalk styling
 - QR code display for easy mobile connection
-- Graceful mode switching between interactive and remote
+- Graceful mode switching between local and remote
 
-### 4. Core Files
+### 7. Core Files
 
 - **`index.ts`**: CLI entry point with argument parsing
+- **`configuration.ts`**: Centralized configuration management
 - **`persistence.ts`**: Local storage for settings and keys
 - **`utils/time.ts`**: Exponential backoff utilities
 
+## Environment Variables
+
+### Genie Configuration
+| Variable | Description |
+|----------|-------------|
+| `GENIE_RELAY_SERVER_URL` | Relay server URL |
+| `GENIE_CONTENT_SERVER_URL` | Content server URL |
+| `GENIE_WEB_URL` | Web URL |
+| `GENIE_OIDC_CLIENT_ID` | OIDC client ID |
+| `GENIE_OIDC_SCOPES` | OIDC permission scopes |
+| `GENIE_HOME_DIR` | Genie home directory |
+| `GENIE_EXPERIMENTAL` | Enable experimental features |
+| `GENIE_DISABLE_CAFFEINATE` | Disable caffeinate |
+| `GENIE_VARIANT` | Build variant (stable/dev) |
+| `GENIE_DAEMON_HEARTBEAT_INTERVAL` | Daemon heartbeat interval in ms |
+| `GENIE_DAEMON_HTTP_TIMEOUT` | Daemon HTTP timeout in ms |
+
+### Debug/Development
+| Variable | Description |
+|----------|-------------|
+| `DEBUG` | Enable debug logging |
+| `CLAUDE_CONFIG_DIR` | Override Claude config directory |
+
 ## Data Flow
 
-1. **Authentication**: 
-   - Generate/load secret key → Create signature challenge → Get auth token
+1. **Authentication**:
+   - OIDC flow via web browser → Get access token → Store credentials
 
 2. **Session Creation**:
    - Create encrypted session with server → Establish WebSocket connection
 
 3. **Message Flow**:
-   - Interactive mode: User input → PTY → Claude → File watcher → Server
+   - Local mode: User input → Claude SDK → Terminal output
    - Remote mode: Mobile app → Server → Claude SDK → Server → Mobile app
 
 4. **Permission Handling**:
-   - Claude requests permission → MCP server intercepts → Sends to mobile → Mobile responds → MCP approves/denies
+   - Claude requests permission → Hook server intercepts → Sends to mobile → Mobile responds → Hook approves/denies
 
 ## Key Design Decisions
 
 1. **File-based logging**: Prevents interference with Claude's terminal UI
-2. **Dual Claude integration**: Process spawning for interactive, SDK for remote
+2. **Dual Claude integration**: Local mode for terminal, remote mode for mobile control
 3. **End-to-end encryption**: All data encrypted before leaving the device
 4. **Session persistence**: Allows resuming sessions across restarts
 5. **Optimistic concurrency**: Handles distributed state updates gracefully
+6. **Multi-agent support**: Supports Claude, Gemini, and Codex backends
 
 ## Security Considerations
 
-- Private keys stored in `~/.handy/access.key` with restricted permissions
+- Credentials stored in `~/.genie/deva_credentials.json` with restricted permissions
 - All communications encrypted using TweetNaCl
-- Challenge-response authentication prevents replay attacks
+- OIDC-based authentication with token refresh
 - Session isolation through unique session IDs
 
 ## Dependencies
@@ -131,33 +191,33 @@ User interface components.
 - Claude: `@anthropic-ai/claude-code` SDK
 - Networking: Socket.IO client, Axios
 - Crypto: TweetNaCl
-- Terminal: node-pty, chalk, qrcode-terminal
+- Terminal: chalk, qrcode-terminal, Ink (React)
 - Validation: Zod
-- Testing: Vitest 
+- Testing: Vitest
 
 
 # Running the Daemon
 
 ## Starting the Daemon
 ```bash
-# From the happy-cli directory:
-./bin/happy.mjs daemon start
+# From the genie-cli directory:
+./bin/genie.mjs daemon start
 
 # With custom server URL (for local development):
-HAPPY_SERVER_URL=http://localhost:3005 ./bin/happy.mjs daemon start
+GENIE_RELAY_SERVER_URL=http://localhost:3005 ./bin/genie.mjs daemon start
 
 # Stop the daemon:
-./bin/happy.mjs daemon stop
+./bin/genie.mjs daemon stop
 
 # Check daemon status:
-./bin/happy.mjs daemon status
+./bin/genie.mjs daemon status
 ```
 
 ## Daemon Logs
-- Daemon logs are stored in `~/.happy-dev/logs/` (or `$HAPPY_HOME_DIR/logs/`)
+- Daemon logs are stored in `~/.genie/logs/` (or `$GENIE_HOME_DIR/logs/`)
 - Named with format: `YYYY-MM-DD-HH-MM-SS-daemon.log`
 
-# Session Forking `claude` and sdk behavior
+# Session Forking `claude` and SDK behavior
 
 ## Commands Run
 
@@ -219,7 +279,7 @@ Lines 7-8: New messages from current interaction
 {"parentUuid":"...","sessionId":"1433467f-ff14-4292-b5b2-2aac77a808f0","message":{"role":"user","content":"what file did we just see?"},...}
 ```
 
-## Implications for handy-cli
+## Implications for genie-cli
 
 When using --resume:
 1. Must handle new session ID in responses
