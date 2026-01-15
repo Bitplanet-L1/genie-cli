@@ -1,4 +1,4 @@
-# Happy
+# Genie CLI
 
 Code on the go — control AI coding agents from your mobile device.
 
@@ -7,7 +7,7 @@ Free. Open source. Code anywhere.
 ## Installation
 
 ```bash
-npm install -g happy-coder
+npm install -g genie-cli
 ```
 
 ## Usage
@@ -15,7 +15,7 @@ npm install -g happy-coder
 ### Claude (default)
 
 ```bash
-happy
+genie
 ```
 
 This will:
@@ -26,7 +26,7 @@ This will:
 ### Gemini
 
 ```bash
-happy gemini
+genie gemini
 ```
 
 Start a Gemini CLI session with remote control capabilities.
@@ -34,42 +34,42 @@ Start a Gemini CLI session with remote control capabilities.
 **First time setup:**
 ```bash
 # Authenticate with Google
-happy connect gemini
+genie connect gemini
 ```
 
 ## Commands
 
 ### Main Commands
 
-- `happy` – Start Claude Code session (default)
-- `happy gemini` – Start Gemini CLI session
-- `happy codex` – Start Codex mode
+- `genie` – Start Claude Code session (default)
+- `genie gemini` – Start Gemini CLI session
+- `genie codex` – Start Codex mode
 
 ### Utility Commands
 
-- `happy auth` – Manage authentication
-- `happy connect` – Store AI vendor API keys in Happy cloud
-- `happy notify` – Send a push notification to your devices
-- `happy daemon` – Manage background service
-- `happy doctor` – System diagnostics & troubleshooting
+- `genie auth` – Manage authentication
+- `genie connect` – Store AI vendor API keys in Genie cloud
+- `genie notify` – Send a push notification to your devices
+- `genie daemon` – Manage background service
+- `genie doctor` – System diagnostics & troubleshooting
 
 ### Connect Subcommands
 
 ```bash
-happy connect gemini     # Authenticate with Google for Gemini
-happy connect claude     # Authenticate with Anthropic
-happy connect codex      # Authenticate with OpenAI
-happy connect status     # Show connection status for all vendors
+genie connect gemini     # Authenticate with Google for Gemini
+genie connect claude     # Authenticate with Anthropic
+genie connect codex      # Authenticate with OpenAI
+genie connect status     # Show connection status for all vendors
 ```
 
 ### Gemini Subcommands
 
 ```bash
-happy gemini                      # Start Gemini session
-happy gemini model set <model>    # Set default model
-happy gemini model get            # Show current model
-happy gemini project set <id>     # Set Google Cloud Project ID (for Workspace accounts)
-happy gemini project get          # Show current Google Cloud Project ID
+genie gemini                      # Start Gemini session
+genie gemini model set <model>    # Set default model
+genie gemini model get            # Show current model
+genie gemini project set <id>     # Set Google Cloud Project ID (for Workspace accounts)
+genie gemini project get          # Show current Google Cloud Project ID
 ```
 
 **Available models:** `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`
@@ -90,18 +90,83 @@ happy gemini project get          # Show current Google Cloud Project ID
 
 ## Environment Variables
 
-### Happy Configuration
+### Genie Configuration
 
-- `HAPPY_SERVER_URL` - Custom server URL (default: https://api.cluster-fluster.com)
-- `HAPPY_WEBAPP_URL` - Custom web app URL (default: https://app.happy.engineering)
-- `HAPPY_HOME_DIR` - Custom home directory for Happy data (default: ~/.happy)
-- `HAPPY_DISABLE_CAFFEINATE` - Disable macOS sleep prevention (set to `true`, `1`, or `yes`)
-- `HAPPY_EXPERIMENTAL` - Enable experimental features (set to `true`, `1`, or `yes`)
+- `GENIE_RELAY_SERVER_URL` - Custom relay server URL
+- `GENIE_CONTENT_SERVER_URL` - Custom backend server URL
+- `GENIE_HOME_DIR` - Custom home directory for Genie data (default: ~/.genie)
+- `GENIE_DISABLE_CAFFEINATE` - Disable macOS sleep prevention (set to `true`, `1`, or `yes`)
+- `GENIE_EXPERIMENTAL` - Enable experimental features (set to `true`, `1`, or `yes`)
 
 ### Gemini Configuration
 
 - `GEMINI_MODEL` - Override default Gemini model
 - `GOOGLE_CLOUD_PROJECT` - Google Cloud Project ID (required for Workspace accounts)
+
+### OIDC Configuration
+
+- `GENIE_OIDC_SCOPES` - Custom OIDC scopes (space-separated)
+
+## Deva SSO Authentication
+
+Genie CLI uses Deva SSO for authentication via OIDC with PKCE (Proof Key for Code Exchange).
+
+### Authentication Flow
+
+1. Run `genie auth` to start authentication
+2. A browser opens to the Deva SSO login page
+3. After login, the authorization code is exchanged for tokens
+4. Tokens are stored in `~/.genie/deva_credentials.json`
+
+### OAuth Flow (PKCE)
+
+```
+┌─────────────┐     1. Generate code_verifier + code_challenge (S256)
+│  Genie CLI  │────────────────────────────────────────────────────────►
+│             │
+│             │     2. Open browser: /sso/authorize?code_challenge=...
+│             │────────────────────────────────────────────────────────►
+│             │                                                    ┌──────────────┐
+│             │     3. User authenticates                          │   Deva SSO   │
+│             │◄───────────────────────────────────────────────────│              │
+│             │     4. Receive authorization_code                  └──────────────┘
+│             │
+│             │     5. POST /oidc/token (code + code_verifier)
+│             │────────────────────────────────────────────────────────►
+│             │                                                    ┌──────────────┐
+│             │     6. Receive tokens (id_token, access_token,     │Content Server│
+│             │◄───────────────────────────────────────────────────│              │
+└─────────────┘        refresh_token)                              └──────────────┘
+```
+
+### OIDC Scopes
+
+Default scopes requested during authentication:
+
+| Scope | Description |
+|-------|-------------|
+| `OPENID` | OpenID Connect authentication |
+| `USER:READ` | Read user profile |
+| `PERSONA:READ` | Read persona information |
+| `PERSONA:PUBLIC_READ` | Read public persona data |
+| `GENIE_MACHINE:READ` | Read machine information |
+| `GENIE_MACHINE:CREATE` | Register new machines |
+| `GENIE_MACHINE:UPDATE` | Update machine status |
+| `GENIE_MACHINE:DELETE` | Remove machines |
+| `GENIE_SESSION:READ` | Read session data |
+| `GENIE_SESSION:CREATE` | Create new sessions |
+| `GENIE_SESSION:UPDATE` | Update session state |
+| `GENIE_SESSION:DELETE` | Delete sessions |
+| `GENIE_SESSION_MESSAGE:READ` | Read session messages |
+| `GENIE_SESSION_MESSAGE:CREATE` | Send messages |
+| `GENIE_SESSION_MESSAGE:UPDATE` | Update messages |
+| `GENIE_SESSION_MESSAGE:DELETE` | Delete messages |
+
+### Token Storage
+
+Credentials are stored in `~/.genie/deva_credentials.json`:
+
+Tokens are automatically refreshed when expired.
 
 ## Gemini Authentication
 
@@ -110,8 +175,8 @@ happy gemini project get          # Show current Google Cloud Project ID
 Personal Gmail accounts work out of the box:
 
 ```bash
-happy connect gemini
-happy gemini
+genie connect gemini
+genie gemini
 ```
 
 ### Google Workspace Account
@@ -123,12 +188,12 @@ Google Workspace (organization) accounts require a Google Cloud Project:
 3. Set the project ID:
 
 ```bash
-happy gemini project set your-project-id
+genie gemini project set your-project-id
 ```
 
 Or use environment variable:
 ```bash
-GOOGLE_CLOUD_PROJECT=your-project-id happy gemini
+GOOGLE_CLOUD_PROJECT=your-project-id genie gemini
 ```
 
 **Guide:** https://goo.gle/gemini-cli-auth-docs#workspace-gca
@@ -148,7 +213,7 @@ Interested in contributing? See [CONTRIBUTING.md](CONTRIBUTING.md) for developme
 ### For Gemini
 
 - Gemini CLI installed (`npm install -g @google/gemini-cli`)
-- Google account authenticated via `happy connect gemini`
+- Google account authenticated via `genie connect gemini`
 
 ## License
 
