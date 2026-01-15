@@ -134,9 +134,15 @@ export class ApiSessionClient extends EventEmitter {
                     let body: unknown
 
                     if (content.t === 'encrypted') {
-                        // Legacy encrypted message - log warning
-                        logger.debug('[SOCKET] [UPDATE] Received encrypted message - encryption not supported in Genie CLI')
-                        return
+                        // GRS wraps messages in encrypted format schema, but content is plain JSON
+                        // The 'c' field contains the JSON string of the actual message
+                        try {
+                            body = JSON.parse(content.c)
+                            logger.debug('[SOCKET] [UPDATE] Parsed message from encrypted wrapper')
+                        } catch {
+                            logger.debug('[SOCKET] [UPDATE] Failed to parse encrypted message content - skipping')
+                            return
+                        }
                     } else {
                         body = content
                     }
